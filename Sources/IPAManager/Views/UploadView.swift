@@ -142,6 +142,27 @@ struct UploadView: View {
                             }
                             .disabled(pcSync.availableIPAs.isEmpty || pcSync.isScanning)
                         }
+
+                        HStack(spacing: 8) {
+                            TextField("أدخل IP السيرفر (مثال: 192.168.8.32)", text: $pcSync.manualIP)
+                                .textFieldStyle(.roundedBorder)
+                                .font(.subheadline)
+                                .autocapitalization(.none)
+                                .disableAutocorrection(true)
+
+                            Button {
+                                pcSync.connectManual()
+                            } label: {
+                                Text("اتصال")
+                                    .font(.subheadline.weight(.semibold))
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 10)
+                                    .background(Color(red: 0.914, green: 0.271, blue: 0.376))
+                                    .foregroundColor(.white)
+                                    .cornerRadius(8)
+                            }
+                            .disabled(pcSync.manualIP.isEmpty || pcSync.isScanning)
+                        }
                     }
                     .padding(20)
                     .background(Color(.systemGray6).opacity(0.5))
