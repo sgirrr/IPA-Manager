@@ -12,61 +12,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Select Xcode version
-        run: sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
-
-      - name: List available Xcode versions
-        run: ls /Applications | grep Xcode
-
-      - name: Setup Xcode version
+      - name: Setup Xcode
         run: |
-          XCODE_VERSION=$(ls /Applications | grep -E 'Xcode_[0-9]+' | sort -V | tail -1)
-          if [ -n "$XCODE_VERSION" ]; then
-            sudo xcode-select -s "/Applications/$XCODE_VERSION/Contents/Developer"
-          fi
+          XCODE=$(ls /Applications | grep -E 'Xcode_[0-9]+' | sort -V | tail -1)
+          sudo xcode-select -s "/Applications/${XCODE:-Xcode.app}/Contents/Developer"
+          xcodebuild -version
 
-      - name: Show Xcode version
-        run: xcodebuild -version
-
-      - name: Resolve Swift Package dependencies
+      - name: Generate Xcode project
         run: |
-          cd Sources
-          # Create a swift package manifest for fetching dependencies
-          echo '// swift-tools-version:5.7
-          import PackageDescription
-          let package = Package(
-            name: "IPAManager",
-            dependencies: [
-              .package(url: "https://github.com/weichsel/ZIPFoundation", from: "0.9.16")
-            ]
-          )' > Package.swift
-          swift package resolve
-          cd ..
-
-      - name: Create Xcode project
-        run: |
-          mkdir -p IPAManager.xcodeproj
-          # Generate minimal project.pbxproj
-          cat > project_gen.sh << 'SCRIPT'
-          #!/bin/bash
-          # This would use `xcodegen` or `swift package generate-xcodeproj`
-          # For simplicity, we use a script to create the build
-
-          # First, create an Info.plist reference
-          mkdir -p build
-
-          # Copy source files
-          find Sources -name "*.swift" -exec cp {} build/ \;
-
-          # Note: Full project generation requires xcodegen
-          # Install xcodegen and use the spec
-          brew install xcodegen || true
-          SCRIPT
-          chmod +x project_gen.sh
-
-      - name: Generate Xcode project with XcodeGen
-        run: |
-          brew install xcodegen || true
+          brew install xcodegen
           cat > project.yml << 'YAML'
           name: IPAManager
           options:
@@ -88,7 +42,7 @@ jobs:
                   PRODUCT_BUNDLE_IDENTIFIER: com.ipamanager.app
                   DEVELOPMENT_TEAM: ""
                   CODE_SIGN_STYLE: Manual
-                  CODE_SIGN_IDENTITY: Apple Development
+                  CODE_SIGN_IDENTITY: iPhone Developer
                   PROVISIONING_PROFILE_SPECIFIER: ""
               dependencies:
                 - package: ZIPFoundation
@@ -99,50 +53,36 @@ jobs:
           YAML
           xcodegen generate
 
-      - name: Build IPA (simulator - no signing)
+      - name: Build for device (unsigned)
         run: |
           xcodebuild -project IPAManager.xcodeproj \
                      -scheme IPAManager \
                      -configuration Release \
-                     -sdk iphonesimulator \
+                     -sdk iphoneos \
                      -derivedDataPath build \
-                     CODE_SIGNING_ALLOWED=NO || true
+                     CODE_SIGNING_ALLOWED=NO \
+                     CODE_SIGN_IDENTITY="" \
+                     CODE_SIGN_ENTITLEMENTS="" \
+                     OTHER_CODE_SIGN_FLAGS="--no-strict"
 
-      - name: Create unsigned IPA
+      - name: Package IPA
         run: |
           mkdir -p output/Payload
           APP_PATH=$(find build -name "*.app" -type d | head -1)
-          if [ -n "$APP_PATH" ]; then
+          echo "Found app: $APP_PATH"
+          if [ -n "$APP_PATH" ] && [ -d "$APP_PATH" ]; then
             cp -R "$APP_PATH" output/Payload/
             cd output
             zip -qr "../IPAManager.ipa" Payload/
             cd ..
-            echo "✅ IPA created at IPAManager.ipa"
+            echo "✅ IPA created ($(du -h IPAManager.ipa | cut -f1))"
           else
-            echo "⚠️ .app not found, creating placeholder IPA with source code"
-            mkdir -p placeholder/Payload
-            # Create a minimal app bundle
-            mkdir -p placeholder/Payload/IPAManager.app
-            echo "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" > placeholder/Payload/IPAManager.app/Info.plist
-            echo "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">" >> placeholder/Payload/IPAManager.app/Info.plist
-            echo "<plist version=\"1.0\"><dict><key>CFBundleIdentifier</key><string>com.ipamanager</string><key>CFBundleExecutable</key><string>IPAManager</string><key>CFBundleName</key><string>IPAManager</string></dict></plist>" >> placeholder/Payload/IPAManager.app/Info.plist
-            cd placeholder
-            zip -qr "../IPAManager.ipa" Payload/
-            cd ..
-            echo "⚠️ Placeholder IPA created. You need to sign it before use."
+            echo "⚠️ .app not found"
+            exit 1
           fi
 
-      - name: Upload IPA as artifact
+      - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
           name: IPAManager.ipa
           path: IPAManager.ipa
-
-      - name: Upload source code
-        uses: actions/upload-artifact@v4
-        with:
-          name: Source-Code
-          path: |
-            Sources/
-            README.md
-            Info.plist
