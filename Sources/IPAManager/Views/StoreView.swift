@@ -7,6 +7,7 @@ struct StoreView: View {
     @State private var searchText = ""
     @State private var showAlert = false
     @State private var alertMessage = ""
+    @State private var showFilePicker = false
 
     var filteredIPAs: [IPAFile] {
         if searchText.isEmpty { return ipaManager.ipas }
@@ -51,6 +52,13 @@ struct StoreView: View {
             .navigationTitle("My Store")
             .searchable(text: $searchText, prompt: "Search apps...")
             .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button {
+                        showFilePicker = true
+                    } label: {
+                        Image(systemName: "doc.badge.plus")
+                    }
+                }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     HStack(spacing: 4) {
                         Image(systemName: "shippingbox.fill")
@@ -59,6 +67,26 @@ struct StoreView: View {
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
+                }
+            }
+            .fileImporter(isPresented: $showFilePicker, allowedContentTypes: [.data], allowsMultipleSelection: false) { result in
+                switch result {
+                case .success(let urls):
+                    if let url = urls.first {
+                        if url.lastPathComponent.hasSuffix(".ipa") {
+                            if ipaManager.importIPA(from: url) {
+                                alertMessage = "✅ Imported: \(url.lastPathComponent)"
+                            } else {
+                                alertMessage = "⚠️ Failed to import"
+                            }
+                        } else {
+                            alertMessage = "⚠️ Please select an .ipa file"
+                        }
+                        showAlert = true
+                    }
+                case .failure(let error):
+                    alertMessage = error.localizedDescription
+                    showAlert = true
                 }
             }
             .sheet(isPresented: $showDetail) {

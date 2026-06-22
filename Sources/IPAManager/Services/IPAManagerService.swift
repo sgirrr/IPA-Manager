@@ -161,7 +161,13 @@ class IPAManagerService: ObservableObject {
         return ipa
     }
 
-    // MARK: - Persistence
+    // MARK: - Import from Files
+
+    func importIPA(from url: URL) -> Bool {
+        return saveIPA(from: url)
+    }
+
+    var availableIPAsCount: Int { ipas.count }
 
     private func saveMetadata() {
         let encoder = JSONEncoder()
