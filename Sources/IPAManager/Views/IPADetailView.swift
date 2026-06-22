@@ -255,26 +255,14 @@ struct IPADetailView: View {
     }
 
     private func installAndLaunch(ipaPath: String) {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/bin/bash")
-        process.arguments = ["-c", "appinst \"\(ipaPath)\""]
+        installMessage = """
+        ✅ \(ipa.displayName) signed successfully!
 
-        do {
-            try process.run()
-            process.waitUntilExit()
-
-            if process.terminationStatus == 0 {
-                installMessage = """
-                ✅ \(ipa.displayName) installed successfully!
-
-                The app should appear on your home screen.
-                """
-            } else {
-                installMessage = "⚠️ appinst failed (exit code \(process.terminationStatus)). Make sure appinst is installed from Sileo/Cydia."
-            }
-        } catch {
-            installMessage = "⚠️ Installation failed: \(error.localizedDescription). Install appinst from Sileo/Cydia first."
-        }
+        Install options:
+        • TrollStore: Share → Open in TrollStore → Install
+        • Jailbreak (SSH): appinst "\(ipaPath)"
+        • Copy to PC: Download via Upload tab → Sideloadly
+        """
         showAlert = true
     }
 }

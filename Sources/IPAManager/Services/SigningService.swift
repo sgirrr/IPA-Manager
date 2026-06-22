@@ -1,4 +1,5 @@
 import Foundation
+import Darwin
 
 class SigningService: ObservableObject {
     @Published var certificates: [Certificate] = []
@@ -70,7 +71,7 @@ class SigningService: ObservableObject {
     func removeCertificate(_ cert: Certificate) {
         try? FileManager.default.removeItem(atPath: cert.p12Path)
         if let prov = cert.provisionPath {
-            try? FileManager.default.removeItem(at: prov)
+            try? FileManager.default.removeItem(atPath: prov)
         }
         certificates.removeAll { $0.id == cert.id }
         saveMetadata()
@@ -121,22 +122,25 @@ class SigningService: ObservableObject {
             try script.write(to: scriptPath, atomically: true, encoding: .utf8)
             try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: scriptPath.path)
 
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: "/bin/bash")
-            process.arguments = [scriptPath.path]
+            var pid: pid_t = 0
+            let cArgs: [UnsafeMutablePointer<CChar>?] = [
+                strdup("/bin/bash"),
+                strdup(scriptPath.path),
+                nil
+            ]
+            let result = cArgs.withUnsafeBufferPointer { buf in
+                posix_spawn(&pid, "/bin/bash", nil, nil, buf.baseAddress, environ)
+            }
+            if result == 0 {
+                var status: Int32 = 0
+                waitpid(pid, &status, 0)
+                lastSignResult = (status == 0) ? "✅ Signed successfully" : "⚠️ Signing failed (exit \(status))"
+            } else {
+                lastSignResult = "⚠️ posix_spawn failed (errno: \(result))"
+                return ""
+            }
 
-            let outputPipe = Pipe()
-            process.standardOutput = outputPipe
-            process.standardError = outputPipe
-
-            try process.run()
-            process.waitUntilExit()
-
-            let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
-            let output = String(data: outputData, encoding: .utf8) ?? ""
-            lastSignResult = output
-
-            if output.contains("✅") {
+            if lastSignResult.contains("✅") {
                 return outputPath
             }
             return ""

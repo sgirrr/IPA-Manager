@@ -51,7 +51,7 @@ class IPAManagerService: ObservableObject {
     }
 
     func duplicateIPA(_ ipa: IPAFile, newBundleID: String, newName: String) -> Bool {
-        guard let index = ipas.firstIndex(where: { $0.id == ipa.id }) else { return false }
+        guard ipas.contains(where: { $0.id == ipa.id }) else { return false }
 
         let originalURL = ipasDirectory.appendingPathComponent(ipa.fileName)
         let baseName = (ipa.fileName as NSString).deletingPathExtension
@@ -142,7 +142,7 @@ class IPAManagerService: ObservableObject {
     private func readIPAMetadata(from url: URL) -> IPAFile {
         var ipa = IPAFile(fileName: url.lastPathComponent)
 
-        guard let archive = Archive(url: url, accessMode: .read) else { return ipa }
+        guard let archive = try? Archive(url: url, accessMode: .read) else { return ipa }
 
         let infoPlistPath = archive.first { $0.path.hasSuffix(".app/Info.plist") || $0.path.hasSuffix(".app/Info.plist") }
         if let entry = infoPlistPath {

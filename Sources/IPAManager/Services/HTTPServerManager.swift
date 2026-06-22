@@ -1,4 +1,5 @@
 import Foundation
+import Darwin
 import Network
 
 class HTTPServerManager: ObservableObject {
@@ -231,12 +232,12 @@ class TCPServer {
 
     func start(handler: @escaping (HTTPRequest, @escaping (HTTPResponse) -> Void) -> Void) {
         running = true
-        let sock = socket(AF_INET, SOCK_STREAM, 0)
+        let sock = Darwin.socket(AF_INET, Int32(SOCK_STREAM), 0)
         guard sock >= 0 else { return }
         self.socket = sock
 
         var opt: Int32 = 1
-        setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &opt, socklen_t(MemoryLayout<Int32>.size))
+        Darwin.setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &opt, socklen_t(MemoryLayout<Int32>.size))
 
         var addr = sockaddr_in()
         addr.sin_family = sa_family_t(AF_INET)
@@ -246,27 +247,27 @@ class TCPServer {
         let addrData = withUnsafePointer(to: &addr) {
             $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { $0 }
         }
-        guard bind(sock, addrData, socklen_t(MemoryLayout<sockaddr_in>.size)) == 0 else { close(sock); return }
-        guard listen(sock, 5) == 0 else { close(sock); return }
+        guard Darwin.bind(sock, addrData, socklen_t(MemoryLayout<sockaddr_in>.size)) == 0 else { Darwin.close(sock); return }
+        guard Darwin.listen(sock, Int32(5)) == 0 else { Darwin.close(sock); return }
 
         while running {
             var clientAddr = sockaddr_storage()
             var clientLen = socklen_t(MemoryLayout<sockaddr_storage>.size)
-            let client = accept(sock, withUnsafeMutablePointer(to: &clientAddr) {
+            let client = Darwin.accept(sock, withUnsafeMutablePointer(to: &clientAddr) {
                 $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { $0 }
             }, &clientLen)
             guard client >= 0 else { continue }
 
             DispatchQueue.global().async {
-                defer { close(client) }
+                defer { Darwin.close(client) }
                 var data = Data()
                 var buf = [UInt8](repeating: 0, count: 65536)
                 var timeout = 5000
                 while timeout > 0 {
-                    let n = read(client, &buf, 65536)
+                    let n = Darwin.read(client, &buf, 65536)
                     if n > 0 { data.append(buf, count: n); timeout = 1000 }
                     else if n == 0 { break }
-                    else { usleep(1000); timeout -= 1 }
+                    else { Darwin.usleep(1000); timeout -= 1 }
                 }
                 guard !data.isEmpty else { return }
                 if let request = HTTPRequest.parse(data) {
@@ -278,7 +279,7 @@ class TCPServer {
                         header += "Content-Length: \(response.body.count)\r\n\r\n"
                         var respData = Data(header.utf8)
                         respData.append(response.body)
-                        _ = write(client, (respData as NSData).bytes.bindMemory(to: UInt8.self, capacity: respData.count), respData.count)
+                        _ = Darwin.write(client, (respData as NSData).bytes.bindMemory(to: UInt8.self, capacity: respData.count), respData.count)
                     }
                 }
             }
@@ -287,7 +288,7 @@ class TCPServer {
 
     func stop() {
         running = false
-        if let sock = socket { close(sock); self.socket = nil }
+        if let sock = socket { Darwin.close(sock); self.socket = nil }
     }
 }
 
@@ -299,7 +300,7 @@ struct HTTPRequest {
 
     static func parse(_ data: Data) -> HTTPRequest? {
         guard let raw = String(data: data, encoding: .utf8) else { return nil }
-        var lines = raw.components(separatedBy: "\r\n")
+        let lines = raw.components(separatedBy: "\r\n")
         guard lines.count >= 1 else { return nil }
 
         let requestLine = lines[0].split(separator: " ")

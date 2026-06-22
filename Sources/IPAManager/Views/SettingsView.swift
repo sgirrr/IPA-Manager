@@ -33,23 +33,9 @@ struct SettingsView: View {
 
                 Section("How to Install") {
                     VStack(alignment: .leading, spacing: 12) {
-                        Label("TrollStore", systemImage: "1.circle.fill")
-                            .font(.subheadline.weight(.medium)) +
-                        Text(" - Open the IPA in TrollStore via Share sheet, tap Install")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-
-                        Label("Jailbreak (appinst)", systemImage: "2.circle.fill")
-                            .font(.subheadline.weight(.medium)) +
-                        Text(" - SSH into your device, run: appinst /path/to/file.ipa")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-
-                        Label("AltStore / Sideloadly", systemImage: "3.circle.fill")
-                            .font(.subheadline.weight(.medium)) +
-                        Text(" - Download IPA to PC via Upload tab, then sideload with your tool")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+                        HStack { Image(systemName: "1.circle.fill").font(.subheadline); Text("TrollStore — Open IPA via Share sheet, tap Install").font(.subheadline) }
+                        HStack { Image(systemName: "2.circle.fill").font(.subheadline); Text("Jailbreak — SSH: appinst /path/to/file.ipa").font(.subheadline) }
+                        HStack { Image(systemName: "3.circle.fill").font(.subheadline); Text("PC — Download IPA via Upload → Sideloadly/AltStore").font(.subheadline) }
                     }
                 }
 
